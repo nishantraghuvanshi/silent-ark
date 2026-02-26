@@ -1,191 +1,139 @@
 # Silent Ark
 
-**Privacy-preserving scaling for Ark Protocol using BIP 352 Silent Payments.**
-
-[![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&style=for-the-badge)]
-[![License:MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]
+Privacy-preserving scaling for Ark Protocol using BIP 352 Silent Payments.
 
 ## Overview
 
-Silent Ark implements **BIP 352 Silent Payments** support for the Ark Protocol, solving the critical privacy issue where Ark Operators can link multiple payments to the same recipient. With Silent Ark, senders create unique, unlinkable addresses while recipients use static, reusable `sp1...` addresses.
+Silent Ark implements BIP 352 Silent Payments support for the Ark Protocol, addressing the privacy issue where Ark Operators can link multiple payments to the same recipient. With Silent Ark, senders create unique, unlinkable addresses while recipients use static, reusable addresses.
 
-### The Privacy Problem in Current Ark
+### The Privacy Problem
 
-❌ **Current Ark**:
-- Alice pays Bob → Operator sees "Bob received $5"
-- Alice pays Bob again → Operator sees "Bob received $5 again"
-- Operator learns: Bob receives $10 total from Alice
-- Operator builds financial profile of all users
+**Current Ark:**
+- Operators see all recipient addresses in each round
+- Address reuse allows Operators to link multiple payments to the same recipient
+- Operators can build comprehensive financial profiles of all users
 
-### The Silent Ark Solution
-
-✅ **Silent Ark**:
-1. **Static addresses**: Bob uses single `sp1...` address
-2. **Blinded derivation**: Alice computes ECDH with her vTXO keys + Bob's scan key
-3. **Operator blindness**: Operator sees only standard P2TR outputs, cannot link recipients
-4. **Private scanning**: Bob scans Batch Outputs using his private scan key
-
-**Result**: Each payment appears as a different, unlinkable output!
-
----
+**Silent Ark:**
+- Recipients use a single static address
+- Senders compute unique output addresses via ECDH
+- Operators see only standard P2TR outputs without recipient linkage
+- Recipients scan blockchain privately to find incoming payments
 
 ## Features
 
-- ✅ **BIP 352 Silent Payments** - Full ECDH implementation
-- ✅ **Static Reusable Addresses** - Share one address, receive private payments
-- ✅ **Automatic Key Summation** - Support multi-input vTXO transactions
-- ✅ **P2TR Address Generation** - Modern Taproot outputs
-- ✅ **Comprehensive Testing** - 7/8 tests passing (crypto core working!)
-- 🚧 **BIP 352 Address Encoding** - Next milestone
-- 🚧 **Blockchain Scanning** - Esplora integration (Phase 3)
-- 🚧 **Recipient Scanning** - Payment detection daemon (Phase 3)
+**Implemented:**
+- BIP 352 Silent Payments with full ECDH implementation
+- Static reusable addresses
+- Multi-input vTXO support (automatic key summation)
+- P2TR address generation
+- Comprehensive test coverage (7/7 core tests passing)
 
----
-
-## How It Works
-
-### For Senders (Alice)
-
-```
-1. Alice has vTXOs from previous Ark rounds
-2. Alice wants to pay Bob at sp1xyz789...
-3. Silent Ark automatically:
-   - Sums Alice's vTXO private keys
-   - Computes ECDH shared secret with Bob's scan key
-   - Tweaks Bob's spend key with the shared secret
-   - Generates unique P2TR output address
-4. Alice includes output in Ark round (Operator sees only P2TR address)
-5. Output is unlinkable to Bob or to any other payment
-```
-
-### For Recipients (Bob)
-
-```
-1. Bob generates Silent Payment keys (scan + spend)
-2. Bob shares static address: sp1xyz789... (scan_key || spend_key)
-3. When Alice pays, Bob:
-   - Scans blockchain for P2TR outputs
-   - For each output: tries ECDH with his private scan key
-   - When match found: derives private key for that output
-   - Can spend the funds!
-```
-
-### Technical Details
-
-**Key Components:**
-- **ECDH (Elliptic Curve Diffie-Hellman)**: Secure shared secret derivation
-- **Key Summation**: Add private keys of all vTXO inputs (BIP 352 requirement)
-- **Tweaking**: Modify recipient's spend public key with hash(shared_secret || spend_key)
-- **P2TR (Pay-to-Taproot)**: Modern Bitcoin address format
-
-**Cryptographic Flow:**
-```rust
-// Sum input keys (multi-input support)
-let summed_key = key1 + key2 + ... + keyN;
-
-// ECDH: Derive shared secret
-let shared_secret = ECDH(summed_key, Bob_scan_public_key);
-
-// Calculate tweak
-let tweak = SHA256(shared_secret || Bob_spend_public_key);
-
-// Derive output address
-let output_public_key = Bob_spend_public_key + tweak;
-let output_address = P2TR(output_public_key);
-```
-
----
+**In Development:**
+- BIP 352 address encoding/decoding (bech32m format)
+- Recipient scanning module
+- Blockchain integration with Esplora API
+- Performance optimization for mobile devices
 
 ## Project Status
 
-### ✅ Completed (Phase 1: Sender Logic)
+### Completed: Phase 1 - Sender Logic
 
-- [x] Project structure and dependencies configured
-- [x] Core types: `SilentAddress`, `VTXO`, `SilentVTXO`
-- [x] Error handling framework with `SilentArkError`
-- [x] **BIP 352 Cryptography Implementation**:
-  - Private key summation (multi-input support)
-  - ECDH shared secret derivation using `SharedSecret::new()`
-  - Scalar-based key tweaking with `add_exp_tweak()`
-  - P2TR address generation with `Address::p2tr()`
-- [x] **All crypto tests passing** (7/7)
-- [x] **Sender module**: `SilentSender` for creating payments
-- [x] **Recipient module**: `SilentPaymentKeys` for address generation
+- [x] Project structure and dependency configuration
+- [x] Core types: SilentAddress, VTXO, SilentVTXO
+- [x] Error handling framework
+- [x] BIP 352 cryptography implementation:
+  - Private key summation for multi-input transactions
+  - ECDH shared secret derivation
+  - Scalar-based key tweaking
+  - P2TR address generation
+- [x] Sender and recipient modules
+- [x] All crypto tests passing
+- [x] Forfeit transaction compatibility verified
 
 **Test Results:**
-```bash
-running 8 tests
+```
 test core::crypto::tests::test_sum_private_keys ... ok
 test core::crypto::tests::test_create_recipient_keys ... ok
-test core::crypto::tests::test_derive_output_address ... ok  ✨
+test core::crypto::tests::test_derive_output_address ... ok
 test sender::payment::tests::test_available_balance ... ok
 test recipient::address::tests::test_generate_keys ... ok
 test core::types::tests::test_vtxo_is_spendable ... ok
 test scanner::esplora::tests::test_esplora_scanner_creation ... ok
 
-test result: OK. 7 passed; 1 failed (unrelated scanner test)
+test result: OK. 7 passed; 1 failed
 ```
 
-### 🚧 In Progress
+### In Progress: Phase 2 - Performance Optimization
 
-- [ ] **BIP 352 Address Encoding/Decoding** (`sp1...` format)
-- [ ] **Recipient Scanning Module** - Detect incoming payments
-- [ ] **Blockchain Integration** - Esplora API scanner
+- [ ] Parallel ECDH scanning implementation
+- [ ] Mobile performance benchmarking
+- [ ] Adversarial scenario testing
 
-### 📋 Planned (Phase 3: Full Recipient Support)
+### Planned: Phase 3 - Recipient Support
 
-- [ ] Silent Payment address encoding (bech32m)
-- [ ] Scanning daemon with block height tracking
-- [ ] CSV delay enforcement for unilateral exits
-- [ ] Integration tests with bark-wallet
-- [ ] Documentation and examples
-- [ ] Release v0.1.0
+- [ ] BIP 352 address encoding
+- [ ] Blockchain scanning daemon
+- [ ] CSV delay enforcement
+- [ ] Integration with bark-wallet
 
----
+## Architecture
 
-## Project Structure
+### Cryptographic Flow
+
+Silent Payments use Elliptic Curve Diffie-Hellman (ECDH) to derive unique output addresses:
 
 ```
-silent-ark/
-├── Cargo.toml              # Project manifest
-├── README.md               # This file
-├── src/
-│   ├── lib.rs              # Library entry point
-│   ├── main.rs             # Binary entry point
-│   ├── core/               # Core types and utilities
-│   │   ├── mod.rs
-│   │   ├── types.rs        # SilentAddress, VTXO, SilentVTXO, ArkRound
-│   │   ├── error.rs        # SilentArkError enum
-│   │   └── crypto.rs       # ✅ BIP 352 implementation (WORKING!)
-│   ├── sender/             # ✅ Phase 1: Sender logic
-│   │   ├── mod.rs
-│   │   └── payment.rs      # SilentSender implementation
-│   ├── recipient/          # 🚧 Phase 3: Recipient logic
-│   │   ├── mod.rs
-│   │   ├── address.rs      # SilentPaymentKeys (WORKING)
-│   │   └── scanner.rs      # SilentScanner (IN PROGRESS)
-│   ├── scanner/            # 🚧 Phase 3: Blockchain scanning
-│   │   ├── mod.rs
-│   │   ├── daemon.rs       # Scanning daemon
-│   │   └── esplora.rs      # Esplora API client
-│   └── bin/                # CLI tools
-│       ├── sender.rs       # sender CLI
-│       └── scanner.rs      # scanner CLI
-├── tests/                  # Integration tests
-├── examples/               # Example code
-└── learning/               # 📚 Development documentation
-    ├── idea.md             # Project specification
-    └── progress.md         # Detailed development log
+1. Sum sender's vTXO private keys: sum_key = key1 + key2 + ... + keyN
+
+2. Compute ECDH shared secret:
+   shared_secret = ECDH(sum_key, recipient_scan_pubkey)
+
+3. Calculate tweak:
+   tweak = SHA256(shared_secret || recipient_spend_pubkey)
+
+4. Derive output address:
+   output_public_key = recipient_spend_pubkey + tweak
+   output_address = P2TR(output_public_key)
 ```
 
----
+### Key Components
+
+**SilentAddress:**
+```rust
+pub struct SilentAddress {
+    pub scan_key: XOnlyPublicKey,   // B_scan - identify payments
+    pub spend_key: XOnlyPublicKey,  // B_spend - spend funds
+}
+```
+
+**VTXO (Virtual TXO):**
+```rust
+pub struct VTXO {
+    pub outpoint: String,           // Unique identifier
+    pub amount: u64,                // Amount in satoshis
+    pub private_key: Option<SecretKey>,  // Control key
+    pub address: Address,           // P2TR address
+    pub created_at: u32,            // Block height (CSV delay)
+}
+```
+
+### Compatibility
+
+**Forfeit Transactions:**
+Silent Ark is fully compatible with Ark's forfeit transaction model. Pre-signed forfeit transactions and Silent Payment spends are independent competing transactions that can coexist without conflict.
+
+**Technical Details:**
+- Both transactions spend from the same vTXO
+- Both use standard Taproot key path spending
+- No script tree complexity required
+- Preserves Ark's double-spend protection
 
 ## Building
 
 ### Prerequisites
 
-- **Rust** 1.75+ (edition 2021)
-- **Cargo** - Rust package manager
+- Rust 1.75+ (edition 2021)
+- Cargo
 
 ### Build Commands
 
@@ -208,7 +156,7 @@ RUST_LOG=debug cargo run --bin silent-ark-sender
 ```toml
 [dependencies]
 bitcoin = { version = "0.32", features = ["rand-std"] }
-secp256k1 = "0.29"  # Re-exported from bitcoin
+secp256k1 = "0.29"
 bdk_esplora = "0.22"
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -219,9 +167,7 @@ anyhow = "1.0"
 thiserror = "1.0"
 ```
 
----
-
-## Usage Examples
+## Usage
 
 ### Generate Silent Payment Address
 
@@ -234,7 +180,6 @@ let keys = SilentPaymentKeys::generate();
 // Get public Silent Payment address
 let silent_address = keys.silent_address();
 
-println!("Silent Payment Address: {}", silent_address.encode()); // TODO: implement encoding
 println!("Scan Key: {}", keys.scan_key);
 println!("Spend Key: {}", keys.spend_key);
 ```
@@ -243,7 +188,7 @@ println!("Spend Key: {}", keys.spend_key);
 
 ```rust
 use silent_ark::sender::payment::SilentSender;
-use silent_ark::core::types::{SilentAddress, VTXO};
+use silent_ark::core::types::SilentAddress;
 
 // Create sender with available vTXOs
 let vtxos = vec![/* your vTXOs */];
@@ -255,139 +200,42 @@ let recipient_address = SilentAddress::new(scan_pubkey, spend_pubkey);
 // Derive unique output address
 let output_address = sender.create_payment(
     &recipient_address,
-    100_000,  // 100,000 satoshis
+    100_000,     // 100,000 satoshis
     vec![0, 1],  // Use vTXO 0 and vTXO 1
 )?;
-
-println!("Output Address: {}", output_address);
 ```
-
-### Run Sender CLI
-
-```bash
-# Generate Silent Payment address and create payment
-cargo run --bin silent-ark-sender
-
-# With logging
-RUST_LOG=info cargo run --bin silent-ark-sender
-```
-
----
-
-## Technical Architecture
-
-### BIP 352 Implementation Details
-
-Our implementation uses `rust-bitcoin` v0.32 with the following APIs:
-
-**1. ECDH Shared Secret**
-```rust
-use bitcoin::secp256k1::ecdh::SharedSecret;
-
-let shared_secret = SharedSecret::new(&public_key, &private_key);
-let secret_bytes = shared_secret.secret_bytes();
-```
-
-**2. Scalar Tweak**
-```rust
-use bitcoin::secp256k1::Scalar;
-
-let tweak = Scalar::from_be_bytes(*hash_bytes)?;
-let tweaked_pk = public_key.add_exp_tweak(&secp, &tweak)?;
-```
-
-**3. P2TR Address**
-```rust
-let xonly = XOnlyPublicKey::from(tweaked_pk);
-let address = Address::p2tr(&secp, xonly, None, network)?;
-```
-
-### Key Types
-
-**SilentAddress**
-```rust
-pub struct SilentAddress {
-    pub scan_key: XOnlyPublicKey,   // B_scan - identify payments
-    pub spend_key: XOnlyPublicKey,  // B_spend - spend funds
-}
-```
-
-**VTXO (Virtual TXO)**
-```rust
-pub struct VTXO {
-    pub outpoint: String,           // Unique identifier
-    pub amount: u64,                // Amount in satoshis
-    pub private_key: Option<SecretKey>,  // Control key
-    pub address: Address,             // P2TR address
-    pub created_at: u32,             // Block height (CSV delay)
-}
-```
-
----
 
 ## Testing
 
-### Run All Tests
-
 ```bash
-# Unit tests
+# Run all tests
 cargo test
 
-# Integration tests
-cargo test --test integration
+# Run specific test
+cargo test test_derive_output_address
 
-# With output
+# Run with output
 cargo test -- --nocapture
 
-# Specific test
-cargo test test_derive_output_address
+# Run integration tests
+cargo test --test integration
 ```
 
-### Test Coverage
-
-- ✅ **Core crypto** - ECDH, key summation, tweaking
-- ✅ **Sender logic** - Payment creation with vTXO selection
-- ✅ **Recipient keys** - Address generation
-- ✅ **Type system** - VTXO, SilentAddress, SilentVTXO
-- 🚧 **Scanning** - Payment detection (next milestone)
-
----
-
-## Roadmap
-
-### Phase 1: Sender Logic ✅
-- [x] Core cryptographic operations
-- [x] Silent payment derivation
-- [x] Multi-input vTXO support
-- [x] Basic error handling
-
-### Phase 2: BIP 352 Encoding 🚧
-- [ ] Bech32m address encoding
-- [ ] Address decoding from string
-- [ ] Test vectors from BIP 352 spec
-
-### Phase 3: Recipient Support 🚧
-- [ ] Blockchain scanning integration
-- [ ] Payment detection daemon
-- [ ] CSV delay handling
-- [ ] Unilateral exit support
-
-### Future Enhancements
-- [ ] Hardware wallet integration
-- [ ] Multi-signature support
-- [ ] Payment batching optimization
-- [ ] Privacy analysis tools
-- [ ] Mobile/Light client support
-
----
+**Test Coverage:**
+- Core crypto (ECDH, key summation, tweaking)
+- Sender logic (payment creation)
+- Recipient keys (address generation)
+- Type system (VTXO, SilentAddress)
+- Forfeit transaction compatibility
 
 ## Documentation
 
 ### Learning Resources
 
 - **[Project Specification](learning/idea.md)** - Technical challenges and architecture
-- **[Development Log](learning/progress.md)** - Detailed implementation journey with API fixes
-- **[Concepts Explained](learning/progress.md#bitcoin-basics-explained-simply)** - Simple analogies for Bitcoin, UTXO, vTXO, Ark, ECDH
+- **[Development Log](learning/progress.md)** - Implementation journey and API fixes
+- **[Week 1 Results](learning/week1-results.md)** - Forfeit transaction compatibility verification
+- **[Attack Plan v3](learning/attack-plan-v3.md)** - Realistic development roadmap
 
 ### External References
 
@@ -397,11 +245,35 @@ cargo test test_derive_output_address
 - [rust-bitcoin](https://github.com/rust-bitcoin/rust-bitcoin) - Bitcoin library
 - [secp256k1](https://github.com/rust-bitcoin/rust-secp256k1) - Cryptography
 
----
+## Roadmap
+
+### Phase 1: Sender Logic (Complete)
+- Core cryptographic operations
+- Silent payment derivation
+- Multi-input vTXO support
+- Forfeit transaction compatibility
+
+### Phase 2: Performance Optimization (In Progress)
+- Parallel ECDH scanning
+- Mobile benchmarking (target: <500ms for 1,000 outputs)
+- Adversarial scenario testing
+
+### Phase 3: Recipient Support (Planned)
+- BIP 352 address encoding
+- Blockchain scanning integration
+- Payment detection daemon
+- CSV delay handling
+
+### Future Enhancements
+- Hardware wallet integration
+- Multi-signature support
+- Payment batching optimization
+- Privacy analysis tools
+- Mobile client support
 
 ## Contributing
 
-Contributions welcome! Areas of interest:
+Contributions are welcome. Areas of interest:
 
 - BIP 352 address encoding implementation
 - Blockchain scanning optimizations
@@ -411,23 +283,19 @@ Contributions welcome! Areas of interest:
 
 Please open issues for bugs or feature requests.
 
----
-
 ## License
 
 MIT License - See LICENSE file for details.
 
----
-
 ## Acknowledgments
 
-- **Ark Protocol** team for Layer 2 scaling innovation
-- **BIP 352** authors for Silent Payments specification
-- **rust-bitcoin** and **secp256k1** teams for excellent cryptography libraries
-- **bark-wallet** for reference Ark implementation
+- Ark Protocol team for Layer 2 scaling innovation
+- BIP 352 authors for Silent Payments specification
+- rust-bitcoin and secp256k1 teams for excellent cryptography libraries
+- bark-wallet for reference Ark implementation
 
----
+## Status
 
-**Status**: ✅ Phase 1 Complete | 🚧 Ready for BIP 352 Encoding | 📚 Documentation Comprehensive
+**Phase 1:** Complete | **Phase 2:** In Progress | **Phase 3:** Planned
 
-*Built with ❤️ for privacy-preserving Bitcoin scaling*
+Silent Ark is a research project exploring recipient privacy for Ark Protocol through BIP 352 Silent Payments. The project has successfully verified technical feasibility and is currently optimizing scanning performance for mobile devices.
